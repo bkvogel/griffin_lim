@@ -17,6 +17,170 @@ import scipy.io.wavfile
 # Author: Brian K. Vogel
 # brian.vogel@gmail.com
 
+
+def hz_to_mel(f_hz):
+    """Convert Hz to mel scale.
+
+    This uses the formula from O'Shaugnessy's book.
+    Args:
+        f_hz (float): The value in Hz.
+
+    Returns:
+        The value in mels.
+    """
+    return 2595*np.log10(1.0 + f_hz/700.0)
+
+
+def mel_to_hz(m_mel):
+    """Convert mel scale to Hz.
+
+    This uses the formula from O'Shaugnessy's book.
+    Args:
+        m_mel (float): The value in mels
+
+    Returns:
+        The value in Hz
+    """
+    return 700*(10**(m_mel/2595) - 1.0)
+
+
+def fft_bin_to_hz(n_bin, sample_rate_hz, fft_size):
+    """Convert FFT bin index to frequency in Hz.
+
+    Args:
+        n_bin (int or float): The FFT bin index.
+        sample_rate_hz (int or float): The sample rate in Hz.
+        fft_size (int or float): The FFT size.
+
+    Returns:
+        The value in Hz.
+    """
+    n_bin = float(n_bin)
+    sample_rate_hz = float(sample_rate_hz)
+    fft_size = float(fft_size)
+    return n_bin*sample_rate_hz/(2.0*fft_size)
+
+
+def hz_to_fft_bin(f_hz, sample_rate_hz, fft_size):
+    """Convert frequency in Hz to FFT bin index.
+
+    Args:
+        f_hz (int or float): The frequency in Hz.
+        sample_rate_hz (int or float): The sample rate in Hz.
+        fft_size (int or float): The FFT size.
+
+    Returns:
+        The FFT bin index as an int.
+    """
+    f_hz = float(f_hz)
+    sample_rate_hz = float(sample_rate_hz)
+    fft_size = float(fft_size)
+    fft_bin = int(np.round((f_hz*2.0*fft_size/sample_rate_hz)))
+    if fft_bin >= fft_size:
+        fft_bin = fft_size-1
+    return fft_bin
+
+
+def make_mel_filterbank(min_freq_hz, max_freq_hz, mel_bin_count,
+                        linear_bin_count, sample_rate_hz):
+    """Create a mel filterbank matrix.
+
+    Create and return a mel filterbank matrix `filterbank` of shape (`mel_bin_count`,
+    `linear_bin_couont`). The `filterbank` matrix can be used to transform a
+    (linear scale) spectrum or spectrogram into a mel scale spectrum or
+    spectrogram as follows:
+
+    `mel_scale_spectrum` = `filterbank`*'linear_scale_spectrum'
+
+    where linear_scale_spectrum' is a shape (`linear_bin_count`, `m`) and
+    `mel_scale_spectrum` is shape ('mel_bin_count', `m`) where `m` is the number
+    of spectral time slices.
+
+    Likewise, the reverse-direction transform can be performed as:
+
+    'linear_scale_spectrum' = filterbank.T`*`mel_scale_spectrum`
+
+    Note that the process of converting to mel scale and then back to linear
+    scale is lossy.
+
+    This function computes the mel-spaced filters such that each filter is triangular
+    (in linear frequency) with response 1 at the center frequency and decreases linearly
+    to 0 upon reaching an adjacent filter's center frequency. Note that any two adjacent
+    filters will overlap having a response of 0.5 at the mean frequency of their
+    respective center frequencies.
+
+    Args:
+        min_freq_hz (float): The frequency in Hz corresponding to the lowest
+            mel scale bin.
+        max_freq_hz (flloat): The frequency in Hz corresponding to the highest
+            mel scale bin.
+        mel_bin_count (int): The number of mel scale bins.
+        linear_bin_count (int): The number of linear scale (fft) bins.
+        sample_rate_hz (float): The sample rate in Hz.
+
+    Returns:
+        The mel filterbank matrix as an 2-dim Numpy array.
+    """
+    min_mels = hz_to_mel(min_freq_hz)
+    max_mels = hz_to_mel(max_freq_hz)
+    # Create mel_bin_count linearly spaced values between these extreme mel values.
+    mel_lin_spaced = np.linspace(min_mels, max_mels, num=mel_bin_count)
+    # Map each of these mel values back into linear frequency (Hz).
+    center_frequencies_hz = np.array([mel_to_hz(n) for n in mel_lin_spaced])
+    mels_per_bin = float(max_mels - min_mels)/float(mel_bin_count - 1)
+    mels_start = min_mels - mels_per_bin
+    hz_start = mel_to_hz(mels_start)
+    fft_bin_start = hz_to_fft_bin(hz_start, sample_rate_hz, linear_bin_count)
+    #print('fft_bin_start: ', fft_bin_start)
+    mels_end = max_mels + mels_per_bin
+    hz_stop = mel_to_hz(mels_end)
+    fft_bin_stop = hz_to_fft_bin(hz_stop, sample_rate_hz, linear_bin_count)
+    #print('fft_bin_stop: ', fft_bin_stop)
+    # Map each center frequency to the closest fft bin index.
+    linear_bin_indices = np.array([hz_to_fft_bin(f_hz, sample_rate_hz, linear_bin_count) for f_hz in center_frequencies_hz])
+    # Create filterbank matrix.
+    filterbank = np.zeros((mel_bin_count, linear_bin_count))
+    for mel_bin in range(mel_bin_count):
+        center_freq_linear_bin = linear_bin_indices[mel_bin]
+        # Create a triangular filter having the current center freq.
+        # The filter will start with 0 response at left_bin (if it exists)
+        # and ramp up to 1.0 at center_freq_linear_bin, and then ramp
+        # back down to 0 response at right_bin (if it exists).
+
+        # Create the left side of the triangular filter that ramps up
+        # from 0 to a response of 1 at the center frequency.
+        if center_freq_linear_bin > 1:
+            # It is possible to create the left triangular filter.
+            if mel_bin == 0:
+                # Since this is the first center frequency, the left side
+                # must start ramping up from linear bin 0 or 1 mel bin before the center freq.
+                left_bin = max(0, fft_bin_start)
+            else:
+                # Start ramping up from the previous center frequency bin.
+                left_bin = linear_bin_indices[mel_bin - 1]
+            for f_bin in range(left_bin, center_freq_linear_bin+1):
+                if (center_freq_linear_bin - left_bin) > 0:
+                    response = float(f_bin - left_bin)/float(center_freq_linear_bin - left_bin)
+                    filterbank[mel_bin, f_bin] = response
+        # Create the right side of the triangular filter that ramps down
+        # from 1 to 0.
+        if center_freq_linear_bin < linear_bin_count-2:
+            # It is possible to create the right triangular filter.
+            if mel_bin == mel_bin_count - 1:
+                # Since this is the last mel bin, we must ramp down to response of 0
+                # at the last linear freq bin.
+                right_bin = min(linear_bin_count - 1, fft_bin_stop)
+            else:
+                right_bin = linear_bin_indices[mel_bin + 1]
+            for f_bin in range(center_freq_linear_bin, right_bin+1):
+                if (right_bin - center_freq_linear_bin) > 0:
+                    response = float(right_bin - f_bin)/float(right_bin - center_freq_linear_bin)
+                    filterbank[mel_bin, f_bin] = response
+        filterbank[mel_bin, center_freq_linear_bin] = 1.0
+
+    return  filterbank
+
+
 def stft_for_reconstruction(x, fft_size, hopsamp):
     """Compute and return the STFT of the supplied time domain signal x.
 

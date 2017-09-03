@@ -11,6 +11,10 @@ This is an iterative algorithm that attempts to find the signal having an STFT s
 
 The Griffin and Lim algorithm can be useful in an audio processing system where an audio signal is transformed to a spectrogram which is then modified or in which an algorithm produces a spectrogram that we would like to "invert" back into an audio signal.
 
+#### Requirements
+
+Requires Python 3 (tested with Python v3.6 Anaconda distribution)
+
 #### Usage
 
 The provided code shows an example usage of the Griffin and Lim algorithm. It loads an audio file, computes the spectrogram, optionally performs low-pass filtering by zeroing all frequency bins above some cutoff frequency, and then uses the Griffin and Lim algorithm to reconstruct an audio signal from the modified spectrogram. Finally, both the reconstructed audio signal and the spectrogram plot figure are saved to a file.
@@ -27,6 +31,12 @@ For example, to enable a low-pass filter with a cutoff frequency of 1000 Hz:
 
 ```
 python run_demo.py --enable_filter --cutoff_freq 1000
+```
+
+The default spectrogram uses a linear frequency scale. For some applications it can be useful to transform to the mel scale. The mel scale is a perceptually motivated frequency scale that is logarithmic in frequency. We can transform the magnitude spectrogram into a mel scale spectrogram, then approximately invert back to a linear scale spectrogram, and finally reconstruct an audio file by using the `--enable_mel_scale` option:
+
+```
+python run_demo.py --enable_mel_scale
 ```
 
 Regarding the number of iterations, a small number such as 50 is good for quick runs but will probably result in some audible artifacts. For high quality output, it is suggested to run for 1000 iterations or more.
