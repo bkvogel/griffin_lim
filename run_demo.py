@@ -80,7 +80,7 @@ def run_demo():
 
 
     # If the mel scale option is selected, apply a perceptual frequency scale.
-    if args.enable_mel_scale or True:
+    if args.enable_mel_scale:
         min_freq_hz = 70
         max_freq_hz = 8000
         mel_bin_count = 200
