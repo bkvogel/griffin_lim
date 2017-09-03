@@ -72,11 +72,9 @@ def run_demo():
            interpolation='nearest')
     colorbar()
     title('Unmodified spectrogram')
-    savefig('spectrogram.png', dpi=150)
-
-
-    stft_modified = stft_mag[:]
-
+    xlabel('time index')
+    ylabel('frequency bin index')
+    savefig('unmodified_spectrogram.png', dpi=150)
 
 
     # If the mel scale option is selected, apply a perceptual frequency scale.
@@ -93,9 +91,11 @@ def run_demo():
                interpolation='nearest')
         colorbar()
         title('Mel scale filter bank')
+        xlabel('linear frequency index')
+        ylabel('mel frequency index')
         savefig('mel_scale_filterbank.png', dpi=150)
 
-        mel_spectrogram = np.dot(filterbank, stft_modified.T)
+        mel_spectrogram = np.dot(filterbank, stft_mag.T)
 
         clf()
         figure(3)
@@ -103,6 +103,8 @@ def run_demo():
                interpolation='nearest')
         colorbar()
         title('Mel scale spectrogram')
+        xlabel('time index')
+        ylabel('mel frequency bin index')
         savefig('mel_scale_spectrogram.png', dpi=150)
 
         inverted_mel_to_linear_freq_spectrogram = np.dot(filterbank.T, mel_spectrogram)
@@ -113,6 +115,8 @@ def run_demo():
                interpolation='nearest')
         colorbar()
         title('Linear scale spectrogram obtained from mel scale spectrogram')
+        xlabel('time index')
+        ylabel('frequency bin index')
         savefig('inverted_mel_to_linear_freq_spectrogram.png', dpi=150)
 
         stft_modified = inverted_mel_to_linear_freq_spectrogram.T
@@ -150,6 +154,8 @@ def run_demo():
            interpolation='nearest')
     colorbar()
     title('Spectrogram used to reconstruct audio')
+    xlabel('time index')
+    ylabel('frequency bin index')
     savefig('reconstruction_spectrogram.png', dpi=150)
 
 
