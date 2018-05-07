@@ -120,6 +120,8 @@ def run_demo():
         savefig('inverted_mel_to_linear_freq_spectrogram.png', dpi=150)
 
         stft_modified = inverted_mel_to_linear_freq_spectrogram.T
+    else:
+        stft_modified = stft_mag
 
     ###### Optional: modify the spectrogram
     # For example, we can implement a low-pass filter by simply setting all frequency bins above
